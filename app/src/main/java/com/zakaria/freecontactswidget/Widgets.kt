@@ -15,43 +15,29 @@ import android.view.View
 import android.widget.RemoteViews
 
 class ContactsWidgetProvider : AppWidgetProvider() {
-
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         for (id in ids) update(context, manager, id)
     }
-
     override fun onDeleted(context: Context, ids: IntArray) {
         for (id in ids) Store.delete(context, id)
     }
-
     companion object {
-        private val TILES = intArrayOf(
-            R.id.t0, R.id.t1, R.id.t2, R.id.t3,
-            R.id.t4, R.id.t5, R.id.t6, R.id.t7,
-            R.id.t8, R.id.t9, R.id.t10, R.id.t11
-        )
-
+        private val TILES = intArrayOf(R.id.t0, R.id.t1, R.id.t2, R.id.t3, R.id.t4, R.id.t5, R.id.t6, R.id.t7, R.id.t8, R.id.t9, R.id.t10, R.id.t11)
         fun update(context: Context, manager: AppWidgetManager, id: Int) {
             val cfg = Store.load(context, id)
             val rv = RemoteViews(context.packageName, R.layout.widget_group)
             rv.setInt(R.id.bg, "setColorFilter", cfg.bgColor)
             rv.setInt(R.id.bg, "setImageAlpha", cfg.bgAlpha)
-
-            val settings = Intent(context, ConfigActivity::class.java)
-                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val settings = Intent(context, ConfigActivity::class.java).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             rv.setOnClickPendingIntent(R.id.bg, Act.pendingActivity(context, id * 20 + 19, settings))
 
-            // وضع الفولدر المنبثق
             if (cfg.widgetMode == 1) {
                 rv.setViewVisibility(R.id.folder_box, View.VISIBLE)
                 rv.setViewVisibility(R.id.row1, View.GONE)
                 rv.setViewVisibility(R.id.row2, View.GONE)
                 rv.setViewVisibility(R.id.row3, View.GONE)
                 rv.setTextViewText(R.id.folder_box, "📁 ${cfg.title} (${cfg.people.size})")
-                val popup = Intent(context, FolderPopupActivity::class.java)
-                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val popup = Intent(context, FolderPopupActivity::class.java).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 rv.setOnClickPendingIntent(R.id.folder_box, Act.pendingActivity(context, id * 20 + 18, popup))
                 manager.updateAppWidget(id, rv)
                 return
@@ -64,10 +50,7 @@ class ContactsWidgetProvider : AppWidgetProvider() {
                     val p = cfg.people[i]
                     rv.setViewVisibility(TILES[i], View.VISIBLE)
                     rv.setImageViewBitmap(TILES[i], Render.tile(context, p, cfg))
-                    rv.setOnClickPendingIntent(
-                        TILES[i],
-                        Act.pendingActivity(context, id * 20 + i, Act.intent(context, p, cfg.defaultAction))
-                    )
+                    rv.setOnClickPendingIntent(TILES[i], Act.pendingActivity(context, id * 20 + i, Act.intent(context, p, cfg.defaultAction)))
                 } else {
                     rv.setViewVisibility(TILES[i], View.INVISIBLE)
                 }
@@ -84,17 +67,13 @@ class SingleContactWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         for (id in ids) update(context, manager, id)
     }
-
     companion object {
         fun update(context: Context, manager: AppWidgetManager, id: Int) {
             val cfg = Store.load(context, id)
             val rv = RemoteViews(context.packageName, R.layout.widget_single)
             rv.setInt(R.id.bg, "setColorFilter", cfg.bgColor)
             rv.setInt(R.id.bg, "setImageAlpha", cfg.bgAlpha)
-
-            val settings = Intent(context, ConfigActivity::class.java)
-                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val settings = Intent(context, ConfigActivity::class.java).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             rv.setOnClickPendingIntent(R.id.bg, Act.pendingActivity(context, id * 20 + 15, settings))
 
             val p = cfg.people.firstOrNull()
@@ -116,50 +95,88 @@ class SingleContactWidgetProvider : AppWidgetProvider() {
 }
 
 class CallsWidgetProvider : AppWidgetProvider() {
-
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         val rows = intArrayOf(R.id.r0, R.id.r1, R.id.r2, R.id.r3, R.id.r4, R.id.r5)
         val labels = ArrayList<String>()
         val numbers = ArrayList<String>()
-
         val allowed = context.checkSelfPermission(Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
         if (allowed) {
             try {
-                context.contentResolver.query(
-                    CallLog.Calls.CONTENT_URI,
-                    arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME, CallLog.Calls.TYPE),
-                    null, null, CallLog.Calls.DATE + " DESC"
-                )?.use { cur ->
+                context.contentResolver.query(CallLog.Calls.CONTENT_URI, arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME, CallLog.Calls.TYPE), null, null, CallLog.Calls.DATE + " DESC")?.use { cur ->
                     while (cur.moveToNext() && labels.size < 6) {
                         val number = cur.getString(0) ?: ""
                         val name = cur.getString(1)
-                        val type = cur.getInt(2)
-                        val arrow = when (type) {
-                            CallLog.Calls.OUTGOING_TYPE -> "↗ "
-                            CallLog.Calls.MISSED_TYPE -> "✖ "
-                            else -> "↙ "
-                        }
+                        val arrow = when (cur.getInt(2)) { CallLog.Calls.OUTGOING_TYPE -> "↗ "; CallLog.Calls.MISSED_TYPE -> "✖ "; else -> "↙ " }
                         labels.add(arrow + (if (name.isNullOrEmpty()) number else name))
                         numbers.add(number)
                     }
                 }
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
-
         for (id in ids) {
             val rv = RemoteViews(context.packageName, R.layout.widget_calls)
-            val refresh = Intent(context, CallsWidgetProvider::class.java)
-                .setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
-                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-            rv.setOnClickPendingIntent(
-                R.id.title,
-                PendingIntent.getBroadcast(context, id, refresh, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            )
-
+            val refresh = Intent(context, CallsWidgetProvider::class.java).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+            rv.setOnClickPendingIntent(R.id.title, PendingIntent.getBroadcast(context, id, refresh, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             for (i in 0 until 6) {
                 if (!allowed) {
                     rv.setTextViewText(rows[i], if (i == 0) "افتح التطبيق وفعّل صلاحية المكالمات" else "")
-                    if (i == 0) {
-                        val open = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        rv.setOn
+                    if (i == 0) rv.setOnClickPendingIntent(rows[i], Act.pendingActivity(context, id * 10, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
+                } else if (i < labels.size) {
+                    rv.setTextViewText(rows[i], labels[i])
+                    val act = if (context.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) Intent.ACTION_CALL else Intent.ACTION_DIAL
+                    rv.setOnClickPendingIntent(rows[i], Act.pendingActivity(context, id * 10 + i, Intent(act, Uri.parse("tel:" + numbers[i])).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
+                } else rv.setTextViewText(rows[i], "")
+            }
+            manager.updateAppWidget(id, rv)
+        }
+    }
+    companion object {
+        fun refreshAll(context: Context) {
+            val ids = AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, CallsWidgetProvider::class.java))
+            if (ids.isNotEmpty()) context.sendBroadcast(Intent(context, CallsWidgetProvider::class.java).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids))
+        }
+    }
+}
+
+class SmsWidgetProvider : AppWidgetProvider() {
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        val rows = intArrayOf(R.id.r0, R.id.r1, R.id.r2, R.id.r3, R.id.r4, R.id.r5)
+        val labels = ArrayList<String>()
+        val senders = ArrayList<String>()
+        val allowed = context.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+        if (allowed) {
+            try {
+                context.contentResolver.query(Telephony.Sms.Inbox.CONTENT_URI, arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY), null, null, Telephony.Sms.DATE + " DESC")?.use { cur ->
+                    while (cur.moveToNext() && labels.size < 6) {
+                        val addr = cur.getString(0) ?: "غير معروف"
+                        val body = (cur.getString(1) ?: "").replace("\n", " ")
+                        labels.add("✉ $addr: $body")
+                        senders.add(addr)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        for (id in ids) {
+            val rv = RemoteViews(context.packageName, R.layout.widget_calls)
+            rv.setTextViewText(R.id.title, "آخر الرسائل (SMS)")
+            val refresh = Intent(context, SmsWidgetProvider::class.java).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+            rv.setOnClickPendingIntent(R.id.title, PendingIntent.getBroadcast(context, id + 500, refresh, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            for (i in 0 until 6) {
+                if (!allowed) {
+                    rv.setTextViewText(rows[i], if (i == 0) "افتح التطبيق وفعّل صلاحية قراءة الرسائل" else "")
+                    if (i == 0) rv.setOnClickPendingIntent(rows[i], Act.pendingActivity(context, id * 10, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
+                } else if (i < labels.size) {
+                    rv.setTextViewText(rows[i], labels[i])
+                    rv.setOnClickPendingIntent(rows[i], Act.pendingActivity(context, id * 10 + i, Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + senders[i])).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
+                } else rv.setTextViewText(rows[i], "")
+            }
+            manager.updateAppWidget(id, rv)
+        }
+    }
+    companion object {
+        fun refreshAll(context: Context) {
+            val ids = AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, SmsWidgetProvider::class.java))
+            if (ids.isNotEmpty()) context.sendBroadcast(Intent(context, SmsWidgetProvider::class.java).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids))
+        }
+    }
+}
