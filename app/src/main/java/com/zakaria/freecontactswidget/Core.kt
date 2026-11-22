@@ -20,58 +20,30 @@ import org.json.JSONObject
 import kotlin.math.cos
 import kotlin.math.sin
 
-data class Person(
-    val name: String,
-    val number: String,
-    val photo: String?,
-    var action: Int = -1, // -1 = استخدام إعداد الويدجت العام، أو رقم إجراء مخصص
-    var simSlot: Int = 0  // 0 = تلقائي، 1 = شريحة 1، 2 = شريحة 2
-)
+data class Person(val name: String, val number: String, val photo: String?, var action: Int = -1, var simSlot: Int = 0)
 
 class Cfg {
     var title: String = "مجموعتي"
-    var widgetMode: Int = 0      // 0 = شبكة جهات، 1 = فولدر منبثق، 2 = جهة واحدة مع أزرار
+    var widgetMode: Int = 0
     var people: MutableList<Person> = mutableListOf()
-    var mask: Int = 0            // 0 دائرة، 1 مربع مدور، 2 مربع، 3 سداسي، 4 قلب
+    var mask: Int = 0
     var ring: Int = 0xFF6C63FF.toInt()
     var bgColor: Int = 0xFFFFFFFF.toInt()
     var textColor: Int = 0xFF222222.toInt()
     var textSize: Float = 28f
     var showName: Boolean = true
-    var defaultAction: Int = 0   // 0 اتصال، 1 SMS، 2 واتساب، 3 تيليجرام، 4 ماسنجر، 5 فايبر، 6 إيميل، 7 ملف الجهة، 8 سيجنال، 9 سناب شات
+    var defaultAction: Int = 0
     var bgAlpha: Int = 220
 }
 
 object Store {
     private fun prefs(c: Context) = c.getSharedPreferences("widgets_v2", Context.MODE_PRIVATE)
-
     fun save(c: Context, id: Int, cfg: Cfg) {
         val arr = JSONArray()
-        for (p in cfg.people) {
-            arr.put(
-                JSONObject()
-                    .put("n", p.name)
-                    .put("p", p.number)
-                    .put("ph", p.photo ?: "")
-                    .put("act", p.action)
-                    .put("sim", p.simSlot)
-            )
-        }
-        val o = JSONObject()
-            .put("title", cfg.title)
-            .put("mode", cfg.widgetMode)
-            .put("people", arr)
-            .put("mask", cfg.mask)
-            .put("ring", cfg.ring)
-            .put("bgColor", cfg.bgColor)
-            .put("textColor", cfg.textColor)
-            .put("textSize", cfg.textSize.toDouble())
-            .put("showName", cfg.showName)
-            .put("action", cfg.defaultAction)
-            .put("bgAlpha", cfg.bgAlpha)
+        for (p in cfg.people) arr.put(JSONObject().put("n", p.name).put("p", p.number).put("ph", p.photo ?: "").put("act", p.action).put("sim", p.simSlot))
+        val o = JSONObject().put("title", cfg.title).put("mode", cfg.widgetMode).put("people", arr).put("mask", cfg.mask).put("ring", cfg.ring).put("bgColor", cfg.bgColor).put("textColor", cfg.textColor).put("textSize", cfg.textSize.toDouble()).put("showName", cfg.showName).put("action", cfg.defaultAction).put("bgAlpha", cfg.bgAlpha)
         prefs(c).edit().putString("w$id", o.toString()).apply()
     }
-
     fun load(c: Context, id: Int): Cfg {
         val cfg = Cfg()
         val s = prefs(c).getString("w$id", null) ?: return cfg
@@ -83,15 +55,7 @@ object Store {
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
                 val ph = x.optString("ph", "")
-                cfg.people.add(
-                    Person(
-                        x.getString("n"),
-                        x.getString("p"),
-                        if (ph.isEmpty()) null else ph,
-                        x.optInt("act", -1),
-                        x.optInt("sim", 0)
-                    )
-                )
+                cfg.people.add(Person(x.getString("n"), x.getString("p"), if (ph.isEmpty()) null else ph, x.optInt("act", -1), x.optInt("sim", 0)))
             }
             cfg.mask = o.optInt("mask", 0)
             cfg.ring = o.optInt("ring", 0xFF6C63FF.toInt())
@@ -101,85 +65,56 @@ object Store {
             cfg.showName = o.optBoolean("showName", true)
             cfg.defaultAction = o.optInt("action", 0)
             cfg.bgAlpha = o.optInt("bgAlpha", 220)
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) {}
         return cfg
     }
-
-    fun delete(c: Context, id: Int) {
-        prefs(c).edit().remove("w$id").apply()
-    }
+    fun delete(c: Context, id: Int) { prefs(c).edit().remove("w$id").apply() }
 }
 
 object Act {
-    val ACTION_NAMES = arrayOf(
-        "اتصال مباشر",
-        "رسالة SMS",
-        "واتساب (WhatsApp)",
-        "تيليجرام (Telegram)",
-        "ماسنجر (Messenger)",
-        "فايبر (Viber)",
-        "بريد إلكتروني (Email)",
-        "عرض ملف جهة الاتصال",
-        "سيجنال (Signal)",
-        "تطبيق الهاتف (لوحة الاتصال)"
-    )
-
-    private fun intlNumber(raw: String): String {
-        val digits = raw.filter { it.isDigit() }
-        if (raw.startsWith("+")) return digits
-        if (digits.startsWith("00")) return digits.substring(2)
-        if (digits.startsWith("01") && digits.length == 11) return "20" + digits.substring(1)
-        return digits
+    val ACTION_NAMES = arrayOf("اتصال مباشر", "رسالة SMS", "واتساب", "تيليجرام", "ماسنجر", "فايبر", "إيميل", "ملف الجهة", "سيجنال", "لوحة الاتصال")
+    private fun intl(raw: String): String {
+        val d = raw.filter { it.isDigit() }
+        if (raw.startsWith("+")) return d
+        if (d.startsWith("00")) return d.substring(2)
+        if (d.startsWith("01") && d.length == 11) return "20" + d.substring(1)
+        return d
     }
-
-    fun intent(c: Context, p: Person, fallbackAction: Int): Intent {
-        val action = if (p.action >= 0) p.action else fallbackAction
+    fun intent(c: Context, p: Person, fallback: Int): Intent {
+        val act = if (p.action >= 0) p.action else fallback
         val num = p.number.filter { it.isDigit() || it == '+' }
-        val intl = intlNumber(p.number)
-
-        val i = when (action) {
+        val w = intl(p.number)
+        val i = when (act) {
             1 -> Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$num"))
-            2 -> Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$intl"))
-            3 -> Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/+$intl"))
+            2 -> Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$w"))
+            3 -> Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/+$w"))
             4 -> Intent(Intent.ACTION_VIEW, Uri.parse("https://m.me/"))
-            5 -> Intent(Intent.ACTION_VIEW, Uri.parse("viber://chat?number=%2B$intl"))
+            5 -> Intent(Intent.ACTION_VIEW, Uri.parse("viber://chat?number=%2B$w"))
             6 -> Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
             7 -> Intent(Intent.ACTION_VIEW, Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(num)))
-            8 -> Intent(Intent.ACTION_VIEW, Uri.parse("https://signal.me/#p/+$intl"))
+            8 -> Intent(Intent.ACTION_VIEW, Uri.parse("https://signal.me/#p/+$w"))
             9 -> Intent(Intent.ACTION_DIAL, Uri.parse("tel:$num"))
             else -> {
-                val granted = c.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
-                val callIntent = Intent(if (granted) Intent.ACTION_CALL else Intent.ACTION_DIAL, Uri.parse("tel:$num"))
-                if (p.simSlot in 1..2 && granted) {
+                val ok = c.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+                val ci = Intent(if (ok) Intent.ACTION_CALL else Intent.ACTION_DIAL, Uri.parse("tel:$num"))
+                if (p.simSlot in 1..2 && ok) {
                     try {
-                        val tm = c.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-                        val accounts = tm.callCapablePhoneAccounts
-                        if (accounts.size >= p.simSlot) {
-                            callIntent.putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, accounts[p.simSlot - 1])
-                        }
-                    } catch (_: Exception) {
-                    }
+                        val acc = (c.getSystemService(Context.TELECOM_SERVICE) as TelecomManager).callCapablePhoneAccounts
+                        if (acc.size >= p.simSlot) ci.putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, acc[p.simSlot - 1])
+                    } catch (_: Exception) {}
                 }
-                callIntent
+                ci
             }
         }
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return i
+        return i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
-
     fun pendingActivity(c: Context, code: Int, i: Intent): PendingIntent =
         PendingIntent.getActivity(c, code, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-
     fun createPinnedShortcut(c: Context, title: String, iconBmp: Bitmap, targetIntent: Intent) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val sm = c.getSystemService(ShortcutManager::class.java)
             if (sm != null && sm.isRequestPinShortcutSupported) {
-                val info = ShortcutInfo.Builder(c, "sc_${System.currentTimeMillis()}")
-                    .setShortLabel(title.ifEmpty { "جهة اتصال" })
-                    .setIcon(Icon.createWithBitmap(iconBmp))
-                    .setIntent(targetIntent.setAction(Intent.ACTION_VIEW))
-                    .build()
+                val info = ShortcutInfo.Builder(c, "sc_${System.currentTimeMillis()}").setShortLabel(title.ifEmpty { "جهة" }).setIcon(Icon.createWithBitmap(iconBmp)).setIntent(targetIntent.setAction(Intent.ACTION_VIEW)).build()
                 sm.requestPinShortcut(info, null)
             }
         }
@@ -187,47 +122,61 @@ object Act {
 }
 
 object Render {
-    private const val W = 192
-    private const val H = 240
-
     private fun loadPhoto(c: Context, uri: String?): Bitmap? {
         if (uri.isNullOrEmpty()) return null
         return try {
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            c.contentResolver.openInputStream(Uri.parse(uri))?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            var sample = 1
-            while (bounds.outWidth / (sample * 2) >= 400 && bounds.outHeight / (sample * 2) >= 400) sample *= 2
-            val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-            c.contentResolver.openInputStream(Uri.parse(uri))?.use { BitmapFactory.decodeStream(it, null, opts) }
-        } catch (_: Exception) {
-            null
+            val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            c.contentResolver.openInputStream(Uri.parse(uri))?.use { BitmapFactory.decodeStream(it, null, b) }
+            var s = 1
+            while (b.outWidth / (s * 2) >= 400 && b.outHeight / (s * 2) >= 400) s *= 2
+            c.contentResolver.openInputStream(Uri.parse(uri))?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = s }) }
+        } catch (_: Exception) { null }
+    }
+    private fun maskPath(mask: Int, r: RectF): Path = Path().apply {
+        when (mask) {
+            0 -> addOval(r, Path.Direction.CW)
+            1 -> addRoundRect(r, 38f, 38f, Path.Direction.CW)
+            2 -> addRoundRect(r, 6f, 6f, Path.Direction.CW)
+            3 -> {
+                for (i in 0 until 6) {
+                    val a = Math.toRadians((60 * i - 30).toDouble())
+                    val x = (r.centerX() + (r.width() / 2f) * cos(a)).toFloat()
+                    val y = (r.centerY() + (r.width() / 2f) * sin(a)).toFloat()
+                    if (i == 0) moveTo(x, y) else lineTo(x, y)
+                }
+                close()
+            }
+            else -> {
+                moveTo(r.left + r.width() / 2f, r.top + r.height() * 0.92f)
+                cubicTo(r.left - r.width() * 0.1f, r.top + r.height() * 0.55f, r.left + r.width() * 0.05f, r.top + r.height() * 0.05f, r.left + r.width() / 2f, r.top + r.height() * 0.30f)
+                cubicTo(r.left + r.width() * 0.95f, r.top + r.height() * 0.05f, r.left + r.width() * 1.1f, r.top + r.height() * 0.55f, r.left + r.width() / 2f, r.top + r.height() * 0.92f)
+                close()
+            }
         }
     }
-
-    private fun buildMaskPath(mask: Int, rect: RectF): Path {
-        val path = Path()
-        when (mask) {
-            0 -> path.addOval(rect, Path.Direction.CW)
-            1 -> path.addRoundRect(rect, 38f, 38f, Path.Direction.CW)
-            2 -> path.addRoundRect(rect, 6f, 6f, Path.Direction.CW)
-            3 -> { // سداسي
-                val cx = rect.centerX()
-                val cy = rect.centerY()
-                val r = rect.width() / 2f
-                for (i in 0 until 6) {
-                    val angle = Math.toRadians((60 * i - 30).toDouble())
-                    val x = (cx + r * cos(angle)).toFloat()
-                    val y = (cy + r * sin(angle)).toFloat()
-                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                }
-                path.close()
-            }
-            else -> { // قلب
-                val w = rect.width()
-                val h = rect.height()
-                val l = rect.left
-                val t = rect.top
-                path.moveTo(l + w / 2f, t + h * 0.92f)
-                path.cubicTo(l - w * 0.1f, t + h * 0.55f, l + w * 0.05f, t + h * 0.05f, l + w / 2f, t + h * 0.30f)
-                path.cubicTo(l + w * 0.95f, t + h * 0.05f, l + w * 1.1f, t + h * 0.55f, l + w / 2f, t + h * 0.92f)
-                path.
+    fun tile(c: Context, p: Person, cfg: Cfg): Bitmap {
+        val bmp = Bitmap.createBitmap(192, 240, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val top = if (cfg.showName) 10f else 44f
+        val rect = RectF(20f, top, 172f, top + 152f)
+        val path = maskPath(cfg.mask, rect)
+        val photo = loadPhoto(c, p.photo)
+        cv.save()
+        cv.clipPath(path)
+        if (photo != null) {
+            val s = minOf(photo.width, photo.height)
+            cv.drawBitmap(photo, Rect((photo.width - s) / 2, (photo.height - s) / 2, (photo.width + s) / 2, (photo.height + s) / 2), rect, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+        } else {
+            cv.drawColor(Color.HSVToColor(floatArrayOf((Math.abs(p.name.hashCode()) % 360).toFloat(), 0.5f, 0.85f)))
+            val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 68f; textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD }
+            cv.drawText(p.name.trim().take(1).uppercase(), rect.centerX(), rect.centerY() - (tp.ascent() + tp.descent()) / 2f, tp)
+        }
+        cv.restore()
+        cv.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 7f; color = cfg.ring })
+        if (cfg.showName) {
+            val tp = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = cfg.textSize; textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD; color = cfg.textColor }
+            cv.drawText(TextUtils.ellipsize(p.name, tp, 184f, TextUtils.TruncateAt.END).toString(), 96f, 222f, tp)
+        }
+        return bmp
+    }
+}
