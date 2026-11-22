@@ -2,58 +2,87 @@ package com.zakaria.freecontactswidget
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.provider.ContactsContract
+import android.view.Gravity
 import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.CheckBox
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.SeekBar
-import android.widget.Spinner
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 
 class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val pad = (16 * resources.displayMetrics.density).toInt()
-        val root = LinearLayout(this)
-        root.orientation = LinearLayout.VERTICAL
-        root.setPadding(pad, pad, pad, pad)
+        val scroll = ScrollView(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+        }
+        scroll.addView(root)
 
-        val title = TextView(this)
-        title.text = "ويدجت جهات الاتصال"
-        title.textSize = 24f
+        val title = TextView(this).apply {
+            text = "ويدجت جهات الاتصال الشامل"
+            textSize = 24f
+            setTextColor(0xFF1A1A1A.toInt())
+        }
         root.addView(title)
 
-        val help = TextView(this)
-        help.textSize = 16f
-        help.setPadding(0, pad, 0, pad)
-        help.text = "1) اضغط مطولاً على مكان فاضي في الشاشة الرئيسية.\n" +
-            "2) اختر ويدجت ثم ابحث عن «ويدجت جهات الاتصال».\n" +
-            "3) اختر «مجموعة جهات» لاختيار حتى 8 جهات، أو «آخر المكالمات».\n" +
-            "4) اضغط على أي مساحة فاضية في الويدجت لفتح إعداداته.\n\n" +
-            "التطبيق مجاني بالكامل، من غير اشتراك أو إعلانات."
+        val sub = TextView(this).apply {
+            text = "اتصال ورسالة ومحادثة بضغطة واحدة • مجاني 100%"
+            textSize = 14f
+            setTextColor(0xFF6C63FF.toInt())
+            setPadding(0, 4, 0, pad)
+        }
+        root.addView(sub)
+
+        val btnPerms = Button(this).apply {
+            text = "1. تفعيل جميع الصلاحيات (المكالمات، الرسائل، الجهات)"
+            setOnClickListener {
+                requestPermissions(
+                    arrayOf(
+                        Manifest.permission.READ_CALL_LOG,
+                        Manifest.permission.CALL_PHONE,
+                        Manifest.permission.READ_CONTACTS,
+                        Manifest.permission.READ_SMS,
+                        Manifest.permission.READ_PHONE_STATE
+                    ), 1
+                )
+            }
+        }
+        root.addView(btnPerms)
+
+        val guideTitle = TextView(this).apply {
+            text = "\nدليل الاستخدام السريع:"
+            textSize = 18f
+            setTextColor(0xFF222222.toInt())
+        }
+        root.addView(guideTitle)
+
+        val help = TextView(this).apply {
+            textSize = 15f
+            setPadding(0, 8, 0, pad)
+            text = "• لإضافة ويدجت: اضغط مطولاً على الشاشة الرئيسية > الويدجت (Widgets) > اختر أحد أشكال «ويدجت جهات الاتصال»:\n" +
+                    "  1) مجموعة جهات (شبكة حتى 12 شخصاً أو فولدر منبثق).\n" +
+                    "  2) جهة اتصال واحدة (بطاقة مع أزرار اتصال وواتساب وSMS).\n" +
+                    "  3) قائمة آخر المكالمات.\n" +
+                    "  4) قائمة آخر الرسائل.\n\n" +
+                    "• لتخصيص كل جهة اتصال: داخل إعدادات الويدجت، اضغط على زر «تخصيص» بجانب أي اسم لتحديد إجراء خاص به (اتصال، واتساب، تيليجرام، إيميل...) أو اختيار شريحة SIM 1 / SIM 2.\n\n" +
+                    "• لإنشاء اختصار مباشر على الشاشة الرئيسية: اضغط زر «تثبيت كاختصار» داخل محرر الويدجت."
+        }
         root.addView(help)
 
-        val btn = Button(this)
-        btn.text = "تفعيل صلاحيات المكالمات"
-        btn.setOnClickListener {
-            requestPermissions(arrayOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.CALL_PHONE), 1)
-        }
-        root.addView(btn)
-        setContentView(root)
+        setContentView(scroll)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         CallsWidgetProvider.refreshAll(this)
+        SmsWidgetProvider.refreshAll(this)
+        Toast.makeText(this, "تم تحديث الصلاحيات بنجاح", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -62,6 +91,7 @@ class ConfigActivity : Activity() {
     private var widgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private lateinit var cfg: Cfg
     private lateinit var listBox: LinearLayout
+    private lateinit var titleInput: EditText
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
@@ -78,154 +108,126 @@ class ConfigActivity : Activity() {
         cfg = Store.load(this, widgetId)
 
         val scroll = ScrollView(this)
-        val root = LinearLayout(this)
-        root.orientation = LinearLayout.VERTICAL
-        root.setPadding(dp(16), dp(16), dp(16), dp(16))
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+        }
         scroll.addView(root)
 
-        fun label(t: String): TextView {
-            val v = TextView(this)
-            v.text = t
-            v.textSize = 16f
-            v.setPadding(0, dp(14), 0, dp(4))
-            return v
+        fun label(t: String): TextView = TextView(this).apply {
+            text = t
+            textSize = 15f
+            setTextColor(0xFF333333.toInt())
+            setPadding(0, dp(14), 0, dp(4))
         }
 
-        fun spinner(items: Array<String>, selected: Int, onPick: (Int) -> Unit): Spinner {
-            val s = Spinner(this)
-            s.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, items)
-            s.setSelection(selected)
-            s.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+        fun spinner(items: Array<String>, selected: Int, onPick: (Int) -> Unit): Spinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@ConfigActivity, android.R.layout.simple_spinner_dropdown_item, items)
+            setSelection(selected.coerceIn(0, items.size - 1))
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                     onPick(position)
                 }
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
-            return s
         }
 
-        val head = TextView(this)
-        head.text = "إعدادات الويدجت"
-        head.textSize = 22f
+        val head = TextView(this).apply {
+            text = "محرر الويدجت المتكامل"
+            textSize = 22f
+            setTextColor(0xFF111111.toInt())
+        }
         root.addView(head)
 
-        val add = Button(this)
-        add.text = "إضافة جهة اتصال (حتى 8)"
-        add.setOnClickListener { pick() }
-        root.addView(add)
+        root.addView(label("اسم الويدجت / الفولدر"))
+        titleInput = EditText(this).apply {
+            setText(cfg.title)
+            hint = "مثال: العائلة، العمل، المفضلة"
+        }
+        root.addView(titleInput)
 
-        listBox = LinearLayout(this)
-        listBox.orientation = LinearLayout.VERTICAL
+        root.addView(label("نوع عرض الويدجت"))
+        root.addView(
+            spinner(
+                arrayOf("شبكة جهات اتصال مباشرة (حتى 12)", "ويدجت فولدر (يفتح نافذة منبثقة بالجهات)"),
+                if (cfg.widgetMode == 1) 1 else 0
+            ) { cfg.widgetMode = it }
+        )
+
+        val addBtn = Button(this).apply {
+            text = "+ استيراد جهة اتصال من الدفتر (حتى 12)"
+            setOnClickListener { pick() }
+        }
+        root.addView(addBtn)
+
+        listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(listBox)
 
-        root.addView(label("شكل الصورة"))
-        root.addView(spinner(arrayOf("دائرة", "مربع بزوايا مدورة", "مربع"), cfg.mask) { cfg.mask = it })
+        root.addView(label("قناع شكل الصورة (Mask)"))
+        root.addView(
+            spinner(arrayOf("دائرة", "مربع بزوايا مدورة", "مربع حاد", "شكل سداسي", "شكل قلب"), cfg.mask) {
+                cfg.mask = it
+            }
+        )
 
-        root.addView(label("لون الإطار"))
+        root.addView(label("لون إطار الصور"))
         val colors = intArrayOf(
             0xFF6C63FF.toInt(), 0xFF2EC4B6.toInt(), 0xFFFF6B6B.toInt(), 0xFFFFB703.toInt(),
             0xFF4CAF50.toInt(), 0xFFFFFFFF.toInt(), 0xFF000000.toInt()
         )
-        val colorRow = LinearLayout(this)
-        for (col in colors) {
-            val sw = View(this)
-            sw.setBackgroundColor(col)
-            val lp = LinearLayout.LayoutParams(dp(40), dp(40))
-            lp.setMargins(dp(4), dp(4), dp(4), dp(4))
-            sw.layoutParams = lp
-            sw.setOnClickListener {
-                cfg.ring = col
-                Toast.makeText(this, "تم اختيار اللون", Toast.LENGTH_SHORT).show()
-            }
-            colorRow.addView(sw)
-        }
-        root.addView(colorRow)
+        root.addView(buildColorRow(colors) { cfg.ring = it })
 
-        val showName = CheckBox(this)
-        showName.text = "إظهار الاسم"
-        showName.isChecked = cfg.showName
-        showName.setOnCheckedChangeListener { _, checked -> cfg.showName = checked }
-        root.addView(showName)
-
-        root.addView(label("عند الضغط على جهة الاتصال"))
-        root.addView(spinner(arrayOf("اتصال", "رسالة SMS", "واتساب"), cfg.action) { cfg.action = it })
+        root.addView(label("لون خلفية الويدجت"))
+        val bgColors = intArrayOf(
+            0xFFFFFFFF.toInt(), 0xFF202124.toInt(), 0xFF1A237E.toInt(), 0xFF004D40.toInt(),
+            0xFF3E2723.toInt(), 0xFFF3E5F5.toInt(), 0x00000000
+        )
+        root.addView(buildColorRow(bgColors) { cfg.bgColor = it })
 
         root.addView(label("شفافية الخلفية"))
-        val seek = SeekBar(this)
-        seek.max = 255
-        seek.progress = cfg.bgAlpha
-        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar?, progress: Int, fromUser: Boolean) {
-                cfg.bgAlpha = progress
-            }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
-        })
-        root.addView(seek)
-
-        val save = Button(this)
-        save.text = "حفظ"
-        save.setOnClickListener { saveAndFinish() }
-        root.addView(save)
-
-        setContentView(scroll)
-        refreshList()
-    }
-
-    private fun pick() {
-        if (cfg.people.size >= 8) {
-            Toast.makeText(this, "الحد الأقصى 8 جهات", Toast.LENGTH_SHORT).show()
-            return
+        val seekAlpha = SeekBar(this).apply {
+            max = 255
+            progress = cfg.bgAlpha
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, progress: Int, fromUser: Boolean) { cfg.bgAlpha = progress }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
         }
-        startActivityForResult(
-            Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI), 11
+        root.addView(seekAlpha)
+
+        val showName = CheckBox(this).apply {
+            text = "إظهار أسماء جهات الاتصال"
+            isChecked = cfg.showName
+            setOnCheckedChangeListener { _, checked -> cfg.showName = checked }
+        }
+        root.addView(showName)
+
+        root.addView(label("لون خط الأسماء"))
+        val textColors = intArrayOf(
+            0xFF222222.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFD600.toInt(), 0xFF00E5FF.toInt(), 0xFFFF5252.toInt()
         )
-    }
+        root.addView(buildColorRow(textColors) { cfg.textColor = it })
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        val uri = data?.data
-        if (requestCode == 11 && resultCode == RESULT_OK && uri != null) {
-            val cols = arrayOf(
-                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                ContactsContract.CommonDataKinds.Phone.NUMBER,
-                ContactsContract.CommonDataKinds.Phone.PHOTO_URI
-            )
-            contentResolver.query(uri, cols, null, null, null)?.use { c ->
-                if (c.moveToFirst()) {
-                    cfg.people.add(Person(c.getString(0) ?: "", c.getString(1) ?: "", c.getString(2)))
+        root.addView(label("الإجراء الافتراضي عند الضغط على أي جهة"))
+        root.addView(spinner(Act.ACTION_NAMES, cfg.defaultAction) { cfg.defaultAction = it })
+
+        val pinBtn = Button(this).apply {
+            text = "تثبيت كاختصار على الشاشة الرئيسية"
+            setOnClickListener {
+                cfg.title = titleInput.text.toString().ifEmpty { "مجموعتي" }
+                Store.save(this@ConfigActivity, widgetId, cfg)
+                val popupIntent = Intent(this@ConfigActivity, FolderPopupActivity::class.java)
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                val icon = if (cfg.people.isNotEmpty()) {
+                    Render.tile(this@ConfigActivity, cfg.people[0], cfg)
+                } else {
+                    Render.tile(this@ConfigActivity, Person(cfg.title, "", null), cfg)
                 }
+                Act.createPinnedShortcut(this@ConfigActivity, cfg.title, icon, popupIntent)
+                Toast.makeText(this@ConfigActivity, "تم إرسال طلب إضافة الاختصار للشاشة الرئيسية", Toast.LENGTH_SHORT).show()
             }
-            refreshList()
         }
-    }
+        root.addView(pinBtn)
 
-    private fun refreshList() {
-        listBox.removeAllViews()
-        for (i in cfg.people.indices) {
-            val p = cfg.people[i]
-            val row = LinearLayout(this)
-            row.orientation = LinearLayout.HORIZONTAL
-            val t = TextView(this)
-            t.text = p.name + "\n" + p.number
-            t.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            row.addView(t)
-            val rm = Button(this)
-            rm.text = "حذف"
-            rm.setOnClickListener {
-                cfg.people.removeAt(i)
-                refreshList()
-            }
-            row.addView(rm)
-            listBox.addView(row)
-        }
-    }
-
-    private fun saveAndFinish() {
-        Store.save(this, widgetId, cfg)
-        ContactsWidgetProvider.update(this, AppWidgetManager.getInstance(this), widgetId)
-        setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
-        finish()
-    }
-}
+        val saveBtn = Button(
